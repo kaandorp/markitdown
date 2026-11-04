@@ -1,0 +1,39 @@
+{
+  "name": "markitdown",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@codemirror/commands": "^6.11.1",
+    "@codemirror/lang-markdown": "^6.5.2",
+    "@codemirror/language": "^6.13.1",
+    "@codemirror/language-data": "^6.5.2",
+    "@codemirror/state": "^6.7.6",
+    "@codemirror/view": "^6.43.15",
+    "@lezer/highlight": "^1.2.5",
+    "@tiptap/core": "^3.32.2",
+    "@tiptap/extension-code-block-lowlight": "^3.32.2",
+    "@tiptap/extension-image": "^3.32.2",
+    "@tiptap/extension-link": "^3.32.2",
+    "@tiptap/extension-list": "^3.32.2",
+    "@tiptap/extension-paragraph": "^3.32.2",
+    "@tiptap/extension-table": "^3.32.2",
+    "@tiptap/extensions": "^3.32.2",
+    "@tiptap/markdown": "^3.32.2",
+    "@tiptap/pm": "^3.32.2",
+    "@tiptap/starter-kit": "^3.32.2",
+    "@tiptap/suggestion": "^3.32.2",
+    "codemirror": "^6.0.2",
+    "gpt-tokenizer": "^4.1.0",
+    "lowlight": "^3.3.0"
+  },
+  "devDependencies": {
+    "typescript": "~5.9",
+    "vite": "^8.3.5"
+  }
+}

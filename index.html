@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>Markitdown</title>
+    <script>
+      // Apply the saved theme before first paint to avoid a flash.
+      try {
+        const t = localStorage.getItem('markitdown:theme')
+        if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t
+      } catch {}
+    </script>
+  </head>
+  <body>
+    <header class="appbar">
+      <div class="brand">Markitdown</div>
+      <div class="actions">
+        <button id="btn-open" title="Open a .md file (or drop one on the page)">Open</button>
+        <button id="btn-save" title="Download as .md">Download</button>
+        <span class="sep"></span>
+        <button id="btn-copy-md" class="primary" title="Copy the whole document as Markdown">Copy Markdown</button>
+        <button id="btn-copy-text" title="Copy the whole document as plain text">Copy plain text</button>
+        <span class="sep"></span>
+        <div class="menu-wrap">
+          <button id="btn-cleanup" aria-haspopup="menu" aria-expanded="false">Cleanup ▾</button>
+          <div id="cleanup-menu" class="dropdown" role="menu" hidden>
+            <button role="menuitem" data-cleanup="blank-lines">Collapse blank lines</button>
+            <button role="menuitem" data-cleanup="trailing">Trim trailing whitespace</button>
+            <button role="menuitem" data-cleanup="images">Remove images</button>
+            <button role="menuitem" data-cleanup="links">Remove links (keep text)</button>
+            <button role="menuitem" data-cleanup="demote">Demote headings (H1 → H2…)</button>
+            <button role="menuitem" data-cleanup="normalize">Normalize Markdown</button>
+          </div>
+        </div>
+        <button id="btn-clear" title="Clear the document">Clear</button>
+        <button id="btn-theme" title="Toggle light/dark theme" aria-label="Toggle theme"></button>
+      </div>
+      <input id="file-input" type="file" accept=".md,.markdown,.txt,text/markdown,text/plain" hidden />
+    </header>
+
+    <main class="split" id="split">
+      <section class="pane pane-left" id="pane-left">
+        <div class="toolbar" id="toolbar" role="toolbar" aria-label="Formatting"></div>
+        <div class="pane-body" id="wysiwyg"></div>
+      </section>
+      <div class="divider" id="divider" role="separator" aria-orientation="vertical" tabindex="0" title="Drag to resize"></div>
+      <section class="pane pane-right" id="pane-right">
+        <div class="pane-header">Markdown source</div>
+        <div class="pane-body" id="source"></div>
+      </section>
+    </main>
+
+    <footer class="statusbar">
+      <span id="stats">0 chars · 0 words · ≈0 tokens</span>
+      <span id="toast" class="toast" aria-live="polite"></span>
+    </footer>
+
+    <div id="drop-overlay" class="drop-overlay" hidden>Drop a Markdown file to open it</div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
