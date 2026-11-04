@@ -19,7 +19,11 @@ Rich-text (WYSIWYG) editing on the left, Markdown source on the right, and the t
 - **LLM helpers:** live chars / words / ≈tokens counter (o200k tokenizer, an estimate for other models), plus
   cleanup tools (collapse blank lines, trim trailing whitespace, remove images, remove links, demote headings,
   normalize). XML-style tags such as `<document>` stay literal.
-- **Autosave** to localStorage, **open** `.md` files (button or drag-and-drop), **download** as `.md`.
+- **Multiple documents** in a sidebar of tabs on the left: **+ New**, click to switch, **×** to delete, double-click
+  (or F2) to rename. You can also name the open document in the field at the top. Unnamed documents are titled by
+  their first heading. Each document has its own undo history.
+- **Autosave** of every document to the browser's localStorage. **Open** `.md` files (button or drag-and-drop;
+  several at once, each as a new document) and **download** the open one as `.md`, named after the document.
 - Resizable split view, light/dark theme (follows the OS, with a toggle), stacked layout on small screens.
 
 Everything runs in the browser; no text leaves your machine.

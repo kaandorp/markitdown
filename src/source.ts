@@ -36,30 +36,30 @@ const theme = EditorView.theme({
 
 export function createSource(parent: HTMLElement, doc: string, onChange: (md: string) => void) {
   const wrap = new Compartment()
-  const view = new EditorView({
-    parent,
-    state: EditorState.create({
-      doc,
-      extensions: [
-        lineNumbers(),
-        history(),
-        drawSelection(),
-        highlightActiveLine(),
-        wrap.of(EditorView.lineWrapping),
-        markdown({ base: markdownLanguage, codeLanguages: languages }),
-        syntaxHighlighting(mdHighlight),
-        syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
-        keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
-        placeholder('Markdown appears here — or type it directly'),
-        theme,
-        EditorView.updateListener.of((u) => {
-          if (!u.docChanged) return
-          if (u.transactions.some((tr) => tr.annotation(External))) return
-          onChange(u.state.doc.toString())
-        }),
-      ],
+  const extensions = [
+    lineNumbers(),
+    history(),
+    drawSelection(),
+    highlightActiveLine(),
+    wrap.of(EditorView.lineWrapping),
+    markdown({ base: markdownLanguage, codeLanguages: languages }),
+    syntaxHighlighting(mdHighlight),
+    syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+    keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
+    placeholder('Markdown appears here — or type it directly'),
+    theme,
+    EditorView.updateListener.of((u) => {
+      if (!u.docChanged) return
+      if (u.transactions.some((tr) => tr.annotation(External))) return
+      onChange(u.state.doc.toString())
     }),
-  })
+  ]
+  const view = new EditorView({ parent, state: EditorState.create({ doc, extensions }) })
+
+  /** Load a different document: new content, fresh undo history. */
+  const reset = (next: string) => {
+    view.setState(EditorState.create({ doc: next, extensions }))
+  }
 
   /** Replace the content with minimal changes, keeping scroll position stable. */
   const setValue = (next: string) => {
@@ -80,5 +80,5 @@ export function createSource(parent: HTMLElement, doc: string, onChange: (md: st
     })
   }
 
-  return { view, setValue, getValue: () => view.state.doc.toString() }
+  return { view, setValue, reset, getValue: () => view.state.doc.toString() }
 }

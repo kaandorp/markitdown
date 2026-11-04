@@ -1,14 +1,16 @@
 import './style.css'
 import type { Node as PMNode } from '@tiptap/pm/model'
+import { EditorState } from '@tiptap/pm/state'
 import { createWysiwyg } from './wysiwyg'
 import { createSource } from './source'
 import { mountToolbar } from './toolbar'
 import { collapseBlankLines, markdownToPlainText, tidyMarkdown, trimTrailingWhitespace } from './markdown'
 import { WELCOME } from './welcome'
+import * as docs from './docs'
 
-const KEY_DOC = 'markitdown:doc'
 const KEY_THEME = 'markitdown:theme'
 const KEY_SPLIT = 'markitdown:split'
+const KEY_SIDEBAR = 'markitdown:sidebar'
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T
 
@@ -42,8 +44,9 @@ function toast(msg: string) {
 
 // ---------------------------------------------------------------- editors & sync
 
-const saved = store.get(KEY_DOC)
-const initial = saved ?? WELCOME
+let activeId = docs.initDocs(WELCOME)
+docs.setActiveId(activeId)
+const initial = docs.getContent(activeId)
 
 /** True while the WYSIWYG is being updated from the source pane. */
 let applyingFromSource = false
@@ -103,21 +106,57 @@ function afterChange(md: string) {
   scheduleStats(md)
 }
 
-// Show the source exactly as saved (the user's own text), or normalized if new.
-source.setValue(saved ?? tidyMarkdown(editor.getMarkdown()))
+/** Show another document: fresh content and fresh undo history in both panes. */
+function loadDocument(md: string) {
+  pendingSource = null
+  clearTimeout(sourceTimer)
+  applyingFromSource = true
+  try {
+    editor.commands.setContent(md, { contentType: 'markdown', emitUpdate: false })
+    // A new state drops the undo history, so Ctrl+Z can't bring back the previous doc.
+    editor.view.updateState(EditorState.create({ doc: editor.state.doc, plugins: editor.state.plugins }))
+  } finally {
+    applyingFromSource = false
+  }
+  // Show the source exactly as saved (the user's own text).
+  source.reset(md)
+  updateStats(md)
+}
 
-if (import.meta.env.DEV) Object.assign(window, { __app: { editor, source, setDocument } })
+// Show the source exactly as saved (the user's own text).
+source.reset(initial)
+
+if (import.meta.env.DEV) Object.assign(window, { __app: { editor, source, setDocument, docs } })
 
 // ---------------------------------------------------------------- persistence
 
 let saveTimer = 0
+let pendingSave: { id: string; md: string } | null = null
+let warnedFull = false
+
 function scheduleSave(md: string) {
+  pendingSave = { id: activeId, md }
   clearTimeout(saveTimer)
-  saveTimer = window.setTimeout(() => store.set(KEY_DOC, md), 300)
+  saveTimer = window.setTimeout(saveNow, 300)
 }
-window.addEventListener('beforeunload', () => {
+
+function saveNow() {
   clearTimeout(saveTimer)
-  store.set(KEY_DOC, currentMarkdown())
+  if (!pendingSave) return
+  const { id, md } = pendingSave
+  pendingSave = null
+  if (docs.saveContent(id, md)) {
+    warnedFull = false
+  } else if (!warnedFull) {
+    warnedFull = true
+    toast("Couldn't save: browser storage is full. Delete some documents.")
+  }
+  renderTabs()
+}
+
+window.addEventListener('beforeunload', () => {
+  flushSource()
+  saveNow()
 })
 
 // ---------------------------------------------------------------- stats
@@ -268,26 +307,30 @@ $('btn-clear').addEventListener('click', () => {
 const fileInput = $<HTMLInputElement>('file-input')
 $('btn-open').addEventListener('click', () => fileInput.click())
 fileInput.addEventListener('change', async () => {
-  const file = fileInput.files?.[0]
-  if (file) await openFile(file)
+  await openFiles([...(fileInput.files ?? [])])
   fileInput.value = ''
 })
 
-async function openFile(file: File) {
-  const text = (await file.text()).replace(/\r\n?/g, '\n')
-  setDocument(text)
-  toast(`Opened ${file.name}`)
+/** Each file opens as a new document named after the file. */
+async function openFiles(files: File[]) {
+  if (!files.length) return
+  let last: docs.DocMeta | null = null
+  for (const file of files) {
+    const text = (await file.text()).replace(/\r\n?/g, '\n')
+    last = docs.createDoc(text, file.name.replace(/\.(md|markdown|txt)$/i, ''))
+  }
+  switchTo(last!.id)
+  toast(files.length === 1 ? `Opened ${files[0].name}` : `Opened ${files.length} files`)
 }
 
 function suggestedFilename(md: string): string {
-  const h = md.match(/^#{1,6}\s+(.+)$/m)?.[1] ?? 'document'
-  const slug = h
-    .replace(/[*_`[\]()#~]/g, '')
+  const meta = docs.listDocs().find((d) => d.id === activeId)
+  const base = meta?.name || docs.derivedTitle(md) || 'document'
+  const slug = base
     .trim()
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}]+/gu, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 60)
+    .replace(/[\\/:*?"<>|\u0000-\u001f]+/g, '-')
+    .replace(/\s+/g, ' ')
+    .slice(0, 80)
   return `${slug || 'document'}.md`
 }
 
@@ -331,11 +374,213 @@ window.addEventListener(
     e.stopPropagation()
     dragDepth = 0
     overlay.hidden = true
-    const file = e.dataTransfer!.files[0]
-    if (file) openFile(file)
+    openFiles([...e.dataTransfer!.files])
   },
   true,
 )
+
+// ---------------------------------------------------------------- documents sidebar
+
+const tabsEl = $<HTMLUListElement>('doc-tabs')
+const nameInput = $<HTMLInputElement>('doc-name')
+let renamingId: string | null = null
+
+function switchTo(id: string) {
+  if (id !== activeId) {
+    flushSource()
+    saveNow()
+    activeId = id
+    docs.setActiveId(id)
+    loadDocument(docs.getContent(id))
+  }
+  renderTabs()
+  tabsEl.querySelector('.doc-tab.is-active')?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+}
+
+function titleOf(meta: docs.DocMeta): string {
+  const content = meta.id === activeId ? currentMarkdown() : docs.getContent(meta.id)
+  return docs.displayTitle(meta, content)
+}
+
+function renderTabs() {
+  if (renamingId) return // don't disturb an inline rename in progress
+  const list = docs.listDocs()
+  // Update tabs in place (keyed by id) so a click in progress isn't lost when
+  // the list re-renders between mousedown and click (e.g. on blur or autosave).
+  const existing = new Map([...tabsEl.children].map((li) => [(li as HTMLElement).dataset.id!, li as HTMLLIElement]))
+  list.forEach((meta, i) => {
+    let li = existing.get(meta.id)
+    existing.delete(meta.id)
+    if (!li) {
+      li = document.createElement('li')
+      li.className = 'doc-tab'
+      li.dataset.id = meta.id
+      const btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'doc-open'
+      btn.setAttribute('role', 'tab')
+      const close = document.createElement('button')
+      close.type = 'button'
+      close.className = 'doc-close'
+      close.textContent = '×'
+      close.title = 'Delete document'
+      li.append(btn, close)
+    }
+    if (tabsEl.children[i] !== li) tabsEl.insertBefore(li, tabsEl.children[i] ?? null)
+
+    const active = meta.id === activeId
+    const title = titleOf(meta)
+    const btn = li.querySelector<HTMLButtonElement>('.doc-open')!
+    li.classList.toggle('is-active', active)
+    btn.setAttribute('aria-selected', String(active))
+    btn.tabIndex = active ? 0 : -1
+    if (btn.textContent !== title) btn.textContent = title
+    btn.title = `${title}\nDouble-click to rename`
+    btn.classList.toggle('is-derived', !meta.name)
+    li.querySelector('.doc-close')!.setAttribute('aria-label', `Delete ${title}`)
+  })
+  for (const li of existing.values()) li.remove()
+
+  const active = list.find((d) => d.id === activeId)
+  if (document.activeElement !== nameInput) nameInput.value = active?.name ?? ''
+  nameInput.placeholder = active ? docs.derivedTitle(currentMarkdown()) || 'Untitled' : 'Untitled'
+  document.title = active ? `${titleOf(active)} · Markitdown` : 'Markitdown'
+}
+
+function newDocument() {
+  flushSource()
+  saveNow()
+  const meta = docs.createDoc('')
+  switchTo(meta.id)
+  editor.commands.focus()
+}
+
+function deleteDocument(id: string) {
+  const list = docs.listDocs()
+  const meta = list.find((d) => d.id === id)
+  if (!meta) return
+  if (id === activeId) {
+    flushSource()
+    saveNow()
+  }
+  const content = docs.getContent(id)
+  if (content.trim() && !window.confirm(`Delete “${titleOf(meta)}”? This can't be undone.`)) return
+
+  const idx = list.findIndex((d) => d.id === id)
+  docs.deleteDoc(id)
+  const rest = docs.listDocs()
+  if (!rest.length) {
+    activeId = '' // force a load of the new doc
+    switchTo(docs.createDoc('').id)
+  } else if (id === activeId) {
+    activeId = ''
+    switchTo(rest[Math.min(idx, rest.length - 1)].id)
+  } else {
+    renderTabs()
+  }
+}
+
+function startRename(li: HTMLLIElement) {
+  const id = li.dataset.id!
+  const meta = docs.listDocs().find((d) => d.id === id)
+  if (!meta) return
+  renamingId = id
+  const input = document.createElement('input')
+  input.className = 'doc-rename'
+  input.value = meta.name
+  input.placeholder = titleOf({ ...meta, name: '' })
+  input.maxLength = 120
+  input.setAttribute('aria-label', 'Document name')
+  const btn = li.querySelector<HTMLButtonElement>('.doc-open')!
+  btn.hidden = true
+  btn.after(input)
+  input.focus()
+  input.select()
+
+  let done = false
+  const finish = (commit: boolean) => {
+    if (done) return
+    done = true
+    if (commit) docs.renameDoc(id, input.value)
+    renamingId = null
+    input.remove()
+    btn.hidden = false
+    renderTabs()
+    if (li.isConnected) btn.focus()
+  }
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') finish(true)
+    if (e.key === 'Escape') finish(false)
+  })
+  input.addEventListener('blur', () => finish(true))
+}
+
+tabsEl.addEventListener('click', (e) => {
+  const target = e.target as HTMLElement
+  const li = target.closest<HTMLLIElement>('.doc-tab')
+  if (!li) return
+  if (target.closest('.doc-close')) deleteDocument(li.dataset.id!)
+  else if (target.closest('.doc-open')) switchTo(li.dataset.id!)
+})
+tabsEl.addEventListener('dblclick', (e) => {
+  const li = (e.target as HTMLElement).closest<HTMLLIElement>('.doc-tab')
+  if (li && (e.target as HTMLElement).closest('.doc-open')) startRename(li)
+})
+tabsEl.addEventListener('keydown', (e) => {
+  const li = (e.target as HTMLElement).closest<HTMLLIElement>('.doc-tab')
+  if (!li || !(e.target as HTMLElement).matches('.doc-open')) return
+  if (e.key === 'F2') {
+    e.preventDefault()
+    startRename(li)
+  } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault()
+    const sib = (e.key === 'ArrowDown' ? li.nextElementSibling : li.previousElementSibling) as HTMLElement | null
+    sib?.querySelector<HTMLElement>('.doc-open')?.focus()
+  }
+})
+
+$('btn-new').addEventListener('click', newDocument)
+
+nameInput.addEventListener('input', () => {
+  docs.renameDoc(activeId, nameInput.value)
+  renderTabs()
+})
+nameInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' || e.key === 'Escape') {
+    e.preventDefault()
+    editor.commands.focus()
+  }
+})
+nameInput.addEventListener('blur', () => {
+  nameInput.value = nameInput.value.trim()
+  renderTabs()
+})
+
+// Another browser tab changed the document list: refresh ours.
+window.addEventListener('storage', (e) => {
+  if (e.key === 'markitdown:docs') {
+    if (!docs.listDocs().some((d) => d.id === activeId)) {
+      const first = docs.listDocs()[0]
+      activeId = ''
+      switchTo(first ? first.id : docs.createDoc('').id)
+    } else {
+      renderTabs()
+    }
+  }
+})
+
+// Show / hide the sidebar.
+const workspace = $('workspace')
+const sidebarBtn = $('btn-sidebar')
+const setSidebar = (open: boolean) => {
+  workspace.classList.toggle('sidebar-hidden', !open)
+  sidebarBtn.setAttribute('aria-expanded', String(open))
+  store.set(KEY_SIDEBAR, open ? '1' : '0')
+}
+setSidebar(store.get(KEY_SIDEBAR) !== '0')
+sidebarBtn.addEventListener('click', () => setSidebar(workspace.classList.contains('sidebar-hidden')))
+
+renderTabs()
 
 // ---------------------------------------------------------------- theme
 

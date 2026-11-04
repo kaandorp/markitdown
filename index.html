@@ -15,9 +15,11 @@
   </head>
   <body>
     <header class="appbar">
+      <button id="btn-sidebar" class="icon-btn" title="Show/hide documents" aria-label="Show or hide documents" aria-controls="sidebar" aria-expanded="true">☰</button>
       <div class="brand">Markitdown</div>
+      <input id="doc-name" class="doc-name" type="text" placeholder="Untitled" aria-label="Document name" maxlength="120" spellcheck="false" autocomplete="off" />
       <div class="actions">
-        <button id="btn-open" title="Open a .md file (or drop one on the page)">Open</button>
+        <button id="btn-open" title="Open a .md file as a new document (or drop one on the page)">Open</button>
         <button id="btn-save" title="Download as .md">Download</button>
         <span class="sep"></span>
         <button id="btn-copy-md" class="primary" title="Copy the whole document as Markdown">Copy Markdown</button>
@@ -37,27 +39,36 @@
         <button id="btn-clear" title="Clear the document">Clear</button>
         <button id="btn-theme" title="Toggle light/dark theme" aria-label="Toggle theme"></button>
       </div>
-      <input id="file-input" type="file" accept=".md,.markdown,.txt,text/markdown,text/plain" hidden />
+      <input id="file-input" type="file" accept=".md,.markdown,.txt,text/markdown,text/plain" multiple hidden />
     </header>
 
-    <main class="split" id="split">
-      <section class="pane pane-left" id="pane-left">
-        <div class="toolbar" id="toolbar" role="toolbar" aria-label="Formatting"></div>
-        <div class="pane-body" id="wysiwyg"></div>
-      </section>
-      <div class="divider" id="divider" role="separator" aria-orientation="vertical" tabindex="0" title="Drag to resize"></div>
-      <section class="pane pane-right" id="pane-right">
-        <div class="pane-header">Markdown source</div>
-        <div class="pane-body" id="source"></div>
-      </section>
-    </main>
+    <div class="workspace" id="workspace">
+      <nav class="sidebar" id="sidebar" aria-label="Documents">
+        <div class="sidebar-head">
+          <span>Documents</span>
+          <button id="btn-new" title="New document">+ New</button>
+        </div>
+        <ul class="doc-tabs" id="doc-tabs" role="tablist" aria-orientation="vertical"></ul>
+      </nav>
+      <main class="split" id="split">
+        <section class="pane pane-left" id="pane-left">
+          <div class="toolbar" id="toolbar" role="toolbar" aria-label="Formatting"></div>
+          <div class="pane-body" id="wysiwyg"></div>
+        </section>
+        <div class="divider" id="divider" role="separator" aria-orientation="vertical" tabindex="0" title="Drag to resize"></div>
+        <section class="pane pane-right" id="pane-right">
+          <div class="pane-header">Markdown source</div>
+          <div class="pane-body" id="source"></div>
+        </section>
+      </main>
+    </div>
 
     <footer class="statusbar">
       <span id="stats">0 chars · 0 words · ≈0 tokens</span>
       <span id="toast" class="toast" aria-live="polite"></span>
     </footer>
 
-    <div id="drop-overlay" class="drop-overlay" hidden>Drop a Markdown file to open it</div>
+    <div id="drop-overlay" class="drop-overlay" hidden>Drop Markdown files to open them as new documents</div>
 
     <script type="module" src="/src/main.ts"></script>
   </body>
