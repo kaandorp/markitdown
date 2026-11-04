@@ -10,18 +10,34 @@
  * two browser tabs don't clobber each other's document lists.
  */
 
+/** Present when the document is linked to a file on the user's device. */
+export interface FileInfo {
+  /** File name on disk, e.g. "notes.md". */
+  name: string
+  autosave: boolean
+  crlf: boolean
+  bom: boolean
+  /** lastModified of the file when we last read or wrote it. */
+  lastModified: number
+  /** Whether the one-time "WYSIWYG edits normalize formatting" notice was shown. */
+  notified: boolean
+}
+
 export interface DocMeta {
   id: string
   /** User-given name; empty means "derive from content". */
   name: string
   created: number
   updated: number
+  file?: FileInfo
 }
 
 const KEY_INDEX = 'markitdown:docs'
 const KEY_ACTIVE = 'markitdown:active'
 const KEY_LEGACY = 'markitdown:doc'
 const contentKey = (id: string) => `markitdown:doc:${id}`
+/** For linked files: the content as last read from / written to disk. */
+const diskKey = (id: string) => `markitdown:disk:${id}`
 
 function read(key: string): string | null {
   try {
@@ -76,10 +92,11 @@ export function setActiveId(id: string) {
   write(KEY_ACTIVE, id)
 }
 
-export function createDoc(content = '', name = ''): DocMeta {
+export function createDoc(content = '', name = '', file?: FileInfo): DocMeta {
   const now = Date.now()
-  const doc: DocMeta = { id: newId(), name, created: now, updated: now }
+  const doc: DocMeta = { id: newId(), name, created: now, updated: now, ...(file ? { file } : {}) }
   write(contentKey(doc.id), content)
+  if (file) write(diskKey(doc.id), content)
   saveIndex([...listDocs(), doc])
   return doc
 }
@@ -107,6 +124,41 @@ export function renameDoc(id: string, name: string) {
 export function deleteDoc(id: string) {
   saveIndex(listDocs().filter((d) => d.id !== id))
   remove(contentKey(id))
+  remove(diskKey(id))
+}
+
+export function getDoc(id: string): DocMeta | undefined {
+  return listDocs().find((d) => d.id === id)
+}
+
+/** Merge changes into a document's metadata (file info is merged too). */
+export function updateDoc(id: string, patch: Omit<Partial<DocMeta>, 'file'> & { file?: Partial<FileInfo> | null }) {
+  const docs = listDocs()
+  const doc = docs.find((d) => d.id === id)
+  if (!doc) return
+  const { file, ...rest } = patch
+  Object.assign(doc, rest)
+  if (file === null) {
+    delete doc.file
+    remove(diskKey(id))
+  } else if (file) {
+    doc.file = { ...(doc.file as FileInfo), ...file }
+  }
+  saveIndex(docs)
+}
+
+export function getDiskText(id: string): string | null {
+  return read(diskKey(id))
+}
+
+export function setDiskText(id: string, text: string) {
+  write(diskKey(id), text)
+}
+
+/** A linked document has unsaved changes when its content differs from disk. */
+export function isDirty(id: string, content?: string): boolean {
+  const disk = read(diskKey(id))
+  return disk !== null && (content ?? getContent(id)) !== disk
 }
 
 /**
@@ -128,6 +180,7 @@ export function initDocs(welcome: string): string {
 /** Title shown for a document: its name, else its first heading or line. */
 export function displayTitle(doc: DocMeta, content: string): string {
   if (doc.name) return doc.name
+  if (doc.file) return doc.file.name
   return derivedTitle(content) || 'Untitled'
 }
 

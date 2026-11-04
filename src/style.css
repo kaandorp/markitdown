@@ -310,6 +310,133 @@ button.primary:hover {
   outline: none;
 }
 
+/* ------------------------------------------------------------ local files */
+
+.main-col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.main-col > .split {
+  flex: 1;
+}
+.sidebar-actions {
+  display: flex;
+  gap: 4px;
+}
+.sidebar-actions button[hidden],
+.actions button[hidden] {
+  display: none;
+}
+.filebar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+  padding: 4px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-soft);
+  font-size: 13px;
+}
+.filebar[hidden],
+.file-notice[hidden] {
+  display: none;
+}
+.file-icon,
+.doc-tab.is-file .doc-open::before {
+  flex: none;
+  width: 12px;
+  height: 14px;
+  background: currentColor;
+  -webkit-mask: var(--file-icon) center / contain no-repeat;
+  mask: var(--file-icon) center / contain no-repeat;
+  opacity: 0.7;
+}
+:root {
+  --file-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 14'%3E%3Cpath d='M1.5 0h6L12 4.5v8A1.5 1.5 0 0 1 10.5 14h-9A1.5 1.5 0 0 1 0 12.5v-11A1.5 1.5 0 0 1 1.5 0zM7 1.2V5h3.8L7 1.2zM1.5 1.2a.3.3 0 0 0-.3.3v11c0 .17.13.3.3.3h9a.3.3 0 0 0 .3-.3V6.2H6.4a.6.6 0 0 1-.6-.6V1.2z'/%3E%3C/svg%3E");
+}
+.file-name {
+  font-weight: 600;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.file-status {
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.file-status[data-tone='dirty'] {
+  color: var(--accent);
+}
+.file-status[data-tone='warn'] {
+  color: #b35900;
+}
+.filebar button {
+  padding: 2px 8px;
+  font-size: 12px;
+}
+.filebar button[hidden] {
+  display: none;
+}
+.filebar-spacer {
+  flex: 1;
+}
+.autosave {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.file-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 7px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--accent-soft);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.file-notice span {
+  flex: 1;
+}
+.file-notice code {
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.file-notice button {
+  border: none;
+  padding: 0 6px;
+  font-size: 16px;
+  line-height: 1.2;
+}
+
+/* Tabs for linked files: file icon, and a dot instead of × while unsaved. */
+.doc-tab.is-file .doc-open::before {
+  content: '';
+  display: inline-block;
+  vertical-align: -2px;
+  margin-right: 7px;
+}
+.doc-tab.is-dirty .doc-close {
+  opacity: 1;
+}
+.doc-tab.is-dirty:not(:hover) .doc-close:not(:focus-visible) {
+  font-size: 0;
+}
+.doc-tab.is-dirty:not(:hover) .doc-close:not(:focus-visible)::before {
+  content: '●';
+  font-size: 11px;
+  color: var(--accent);
+}
+
 /* ------------------------------------------------------------ split */
 
 .split {
@@ -755,7 +882,7 @@ button.primary:hover {
     padding: 0 6px;
     border-bottom: none;
   }
-  .sidebar-head span {
+  .sidebar-head > span:first-child {
     display: none;
   }
   .doc-tabs {
@@ -772,6 +899,11 @@ button.primary:hover {
   }
   .doc-close {
     opacity: 1;
+  }
+  .filebar {
+    flex-wrap: wrap;
+    row-gap: 2px;
+    padding: 4px 12px;
   }
   .doc-name {
     flex: 1 1 auto;

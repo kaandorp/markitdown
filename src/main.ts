@@ -7,6 +7,7 @@ import { mountToolbar } from './toolbar'
 import { collapseBlankLines, markdownToPlainText, tidyMarkdown, trimTrailingWhitespace } from './markdown'
 import { WELCOME } from './welcome'
 import * as docs from './docs'
+import * as lf from './localfiles'
 
 const KEY_THEME = 'markitdown:theme'
 const KEY_SPLIT = 'markitdown:split'
@@ -58,6 +59,7 @@ const editor = createWysiwyg($('wysiwyg'), initial, () => {
   const md = tidyMarkdown(editor.getMarkdown())
   source.setValue(md)
   afterChange(md)
+  maybeShowNormalizeNotice()
 })
 
 const source = createSource($('source'), '', (md) => {
@@ -151,12 +153,18 @@ function saveNow() {
     warnedFull = true
     toast("Couldn't save: browser storage is full. Delete some documents.")
   }
+  scheduleAutosave(id)
   renderTabs()
 }
 
-window.addEventListener('beforeunload', () => {
+window.addEventListener('beforeunload', (e) => {
   flushSource()
   saveNow()
+  // Drafts survive in localStorage, but unsaved edits haven't reached the file yet.
+  if (docs.listDocs().some((d) => d.file && docs.isDirty(d.id))) {
+    e.preventDefault()
+    e.returnValue = ''
+  }
 })
 
 // ---------------------------------------------------------------- stats
@@ -305,7 +313,14 @@ $('btn-clear').addEventListener('click', () => {
 // ---------------------------------------------------------------- files
 
 const fileInput = $<HTMLInputElement>('file-input')
-$('btn-open').addEventListener('click', () => fileInput.click())
+$('btn-open').addEventListener('click', async () => {
+  if (!lf.supported) return fileInput.click()
+  try {
+    await openLocalFiles(await lf.pickFiles())
+  } catch (err) {
+    toast(`Couldn't open file: ${(err as Error).message}`)
+  }
+})
 fileInput.addEventListener('change', async () => {
   await openFiles([...(fileInput.files ?? [])])
   fileInput.value = ''
@@ -374,7 +389,10 @@ window.addEventListener(
     e.stopPropagation()
     dragDepth = 0
     overlay.hidden = true
-    openFiles([...e.dataTransfer!.files])
+    // Where supported, dropped files are opened for in-place editing.
+    const handles = lf.supported ? lf.handlesFromDrop(e.dataTransfer!) : null
+    if (handles) handles.then(openLocalFiles).catch(() => openFiles([...e.dataTransfer!.files]))
+    else openFiles([...e.dataTransfer!.files])
   },
   true,
 )
@@ -392,6 +410,8 @@ function switchTo(id: string) {
     activeId = id
     docs.setActiveId(id)
     loadDocument(docs.getContent(id))
+    noticeEl.hidden = true
+    void checkDisk(id)
   }
   renderTabs()
   tabsEl.querySelector('.doc-tab.is-active')?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
@@ -436,15 +456,21 @@ function renderTabs() {
     btn.tabIndex = active ? 0 : -1
     if (btn.textContent !== title) btn.textContent = title
     btn.title = `${title}\nDouble-click to rename`
-    btn.classList.toggle('is-derived', !meta.name)
-    li.querySelector('.doc-close')!.setAttribute('aria-label', `Delete ${title}`)
+    btn.classList.toggle('is-derived', !meta.name && !meta.file)
+    li.classList.toggle('is-file', !!meta.file)
+    li.classList.toggle('is-dirty', !!meta.file && docs.isDirty(meta.id, active ? currentMarkdown() : undefined))
+    if (meta.file) btn.title = `${title}\nFile on this device: ${meta.file.name}\nDouble-click to rename`
+    const close = li.querySelector<HTMLButtonElement>('.doc-close')!
+    close.title = meta.file ? 'Close (the file stays on your device)' : 'Delete document'
+    close.setAttribute('aria-label', `${meta.file ? 'Close' : 'Delete'} ${title}`)
   })
   for (const li of existing.values()) li.remove()
 
   const active = list.find((d) => d.id === activeId)
   if (document.activeElement !== nameInput) nameInput.value = active?.name ?? ''
-  nameInput.placeholder = active ? docs.derivedTitle(currentMarkdown()) || 'Untitled' : 'Untitled'
+  nameInput.placeholder = active?.file?.name ?? (active ? docs.derivedTitle(currentMarkdown()) || 'Untitled' : 'Untitled')
   document.title = active ? `${titleOf(active)} · Markitdown` : 'Markitdown'
+  renderFileBar()
 }
 
 function newDocument() {
@@ -464,7 +490,14 @@ function deleteDocument(id: string) {
     saveNow()
   }
   const content = docs.getContent(id)
-  if (content.trim() && !window.confirm(`Delete “${titleOf(meta)}”? This can't be undone.`)) return
+  if (meta.file) {
+    // Closing a linked file only unlinks it; the file on disk is untouched.
+    if (docs.isDirty(id) && !window.confirm(`“${titleOf(meta)}” has unsaved changes. Close it anyway?\n\nThe file on your device stays as it was last saved.`)) return
+    void lf.handles.delete(id)
+    perms.delete(id)
+    conflicts.delete(id)
+    missing.delete(id)
+  } else if (content.trim() && !window.confirm(`Delete “${titleOf(meta)}”? This can't be undone.`)) return
 
   const idx = list.findIndex((d) => d.id === id)
   docs.deleteDoc(id)
@@ -580,7 +613,6 @@ const setSidebar = (open: boolean) => {
 setSidebar(store.get(KEY_SIDEBAR) !== '0')
 sidebarBtn.addEventListener('click', () => setSidebar(workspace.classList.contains('sidebar-hidden')))
 
-renderTabs()
 
 // ---------------------------------------------------------------- theme
 
@@ -630,3 +662,337 @@ divider.addEventListener('keydown', (e) => {
   store.set(KEY_SPLIT, String(setSplit(cur + (e.key === 'ArrowLeft' ? -2 : 2))))
   e.preventDefault()
 })
+
+// ---------------------------------------------------------------- local files (File System Access API)
+
+const filebar = $('filebar')
+const fileNameEl = $('file-name')
+const fileStatusEl = $('file-status')
+const reconnectBtn = $<HTMLButtonElement>('btn-reconnect')
+const autosaveChk = $<HTMLInputElement>('chk-autosave')
+const noticeEl = $('file-notice')
+const saveFileBtn = $<HTMLButtonElement>('btn-save-file')
+const newFileBtn = $<HTMLButtonElement>('btn-new-file')
+
+/** Last known read/write permission per linked document. */
+const perms = new Map<string, PermissionState>()
+/** Docs whose file changed on disk while the user chose to keep their version. */
+const conflicts = new Set<string>()
+/** Docs whose file can no longer be found (moved or deleted). */
+const missing = new Set<string>()
+/** lastModified values the user already declined to reload, so we don't ask again. */
+const declined = new Map<string, number>()
+let writing = false
+let autosaveTimer = 0
+
+saveFileBtn.hidden = !lf.supported
+newFileBtn.hidden = !lf.supported
+if (lf.supported) overlay.textContent = 'Drop Markdown files to edit them here'
+
+const fileInfo = (disk: lf.DiskFormat & { lastModified: number }, name: string): docs.FileInfo => ({
+  name,
+  autosave: false,
+  crlf: disk.crlf,
+  bom: disk.bom,
+  lastModified: disk.lastModified,
+  notified: false,
+})
+
+const isNotFound = (e: unknown) => e instanceof DOMException && e.name === 'NotFoundError'
+const linkedIds = () => docs.listDocs().filter((d) => d.file).map((d) => d.id)
+
+/** Open files from the device as linked documents (or switch to them if already open). */
+async function openLocalFiles(handles: FileSystemFileHandle[]) {
+  if (!handles.length) return
+  let lastId: string | null = null
+  for (const handle of handles) {
+    const existing = await lf.findOpen(handle, linkedIds())
+    if (existing) {
+      lastId = existing
+      continue
+    }
+    const disk = await lf.readFile(handle)
+    const meta = docs.createDoc(disk.text, '', fileInfo(disk, handle.name))
+    await lf.handles.set(meta.id, handle)
+    perms.set(meta.id, await lf.permission(handle))
+    lastId = meta.id
+  }
+  if (!lastId) return
+  if (lastId === activeId) void checkDisk(lastId)
+  switchTo(lastId)
+  toast(handles.length === 1 ? `Opened ${handles[0].name}` : `Opened ${handles.length} files`)
+}
+
+/** "+ File": create a new Markdown file on the device and open it. */
+async function newLocalFile() {
+  try {
+    const handle = await lf.pickSaveFile('untitled.md')
+    if (!handle) return
+    const existing = await lf.findOpen(handle, linkedIds())
+    if (existing) {
+      toast(`${handle.name} is already open`)
+      return switchTo(existing)
+    }
+    const lastModified = await lf.writeFile(handle, '', { crlf: false, bom: false })
+    flushSource()
+    saveNow()
+    const meta = docs.createDoc('', '', fileInfo({ crlf: false, bom: false, lastModified }, handle.name))
+    await lf.handles.set(meta.id, handle)
+    perms.set(meta.id, 'granted')
+    switchTo(meta.id)
+    editor.commands.focus()
+  } catch (err) {
+    toast(`Couldn't create file: ${(err as Error).message}`)
+  }
+}
+
+/** Save a browser document to a new file on the device and link it. */
+async function saveAsLocalFile() {
+  flushSource()
+  saveNow()
+  const id = activeId
+  const md = currentMarkdown()
+  try {
+    const handle = await lf.pickSaveFile(suggestedFilename(md))
+    if (!handle) return
+    const lastModified = await lf.writeFile(handle, md, { crlf: false, bom: false })
+    docs.updateDoc(id, { file: fileInfo({ crlf: false, bom: false, lastModified }, handle.name) })
+    docs.setDiskText(id, md)
+    await lf.handles.set(id, handle)
+    perms.set(id, 'granted')
+    missing.delete(id)
+    toast(`Saved as ${handle.name}`)
+  } catch (err) {
+    toast(`Couldn't save: ${(err as Error).message}`)
+  }
+  renderTabs()
+}
+
+/** Ctrl+S / Save: write a linked document, or "save as" for a browser document. */
+async function saveActive() {
+  flushSource()
+  saveNow()
+  const meta = docs.getDoc(activeId)
+  if (!meta) return
+  if (!meta.file || missing.has(meta.id)) return saveAsLocalFile()
+  await saveLinked(meta.id, false)
+}
+
+async function saveLinked(id: string, auto: boolean) {
+  const meta = docs.getDoc(id)
+  if (!meta?.file) return
+  const handle = await lf.handles.get(id)
+  if (!handle) {
+    if (!auto) toast('Lost access to this file. Open it again to keep editing it in place.')
+    return
+  }
+  if (writing) {
+    if (auto) scheduleAutosave(id)
+    return
+  }
+  // Autosave never prompts; it waits until permission was granted by a click.
+  const granted = auto ? (await lf.permission(handle)) === 'granted' : await lf.requestPermission(handle)
+  perms.set(id, granted ? 'granted' : 'prompt')
+  if (!granted) {
+    if (!auto) toast('Permission not granted: the file was not saved')
+    renderFileBar()
+    return
+  }
+
+  writing = true
+  try {
+    // Don't silently overwrite edits made by another app.
+    const mod = await lf.lastModified(handle)
+    if (mod !== meta.file.lastModified) {
+      const disk = await lf.readFile(handle)
+      if (disk.text !== docs.getDiskText(id)) {
+        if (auto) {
+          conflicts.add(id)
+          return
+        }
+        const ok = window.confirm(
+          `“${meta.file.name}” was changed by another app since you opened it here.\n\nOverwrite it with your version?`,
+        )
+        if (!ok) return
+      }
+    }
+    const content = docs.getContent(id)
+    const lastModified = await lf.writeFile(handle, content, meta.file)
+    docs.setDiskText(id, content)
+    docs.updateDoc(id, { file: { lastModified } })
+    conflicts.delete(id)
+    missing.delete(id)
+    declined.delete(id)
+    if (!auto) toast(`Saved ${meta.file.name}`)
+  } catch (err) {
+    if (isNotFound(err)) {
+      // The next Save asks for a new location.
+      missing.add(id)
+      toast(`${meta.file.name} was moved or deleted. Press Save to choose a new location.`)
+    } else {
+      toast(`Couldn't save ${meta.file.name}: ${(err as Error).message}`)
+    }
+  } finally {
+    writing = false
+    renderTabs()
+  }
+}
+
+function scheduleAutosave(id: string) {
+  const meta = docs.getDoc(id)
+  if (!meta?.file?.autosave || !docs.isDirty(id)) return
+  clearTimeout(autosaveTimer)
+  autosaveTimer = window.setTimeout(() => void saveLinked(id, true), 1000)
+}
+
+/**
+ * Check whether a linked file changed on disk (e.g. edited in another app).
+ * Reloads silently when there are no unsaved changes here; otherwise asks.
+ */
+async function checkDisk(id: string) {
+  const meta = docs.getDoc(id)
+  if (!meta?.file || writing) return renderFileBar()
+  const handle = await lf.handles.get(id)
+  if (!handle) return renderFileBar()
+  perms.set(id, await lf.permission(handle))
+  // Reading needs at least read permission; without it, wait for "Reconnect".
+  if (!(await lf.canRead(handle))) return renderFileBar()
+
+  let mod: number
+  try {
+    mod = await lf.lastModified(handle)
+    missing.delete(id)
+  } catch (err) {
+    if (isNotFound(err)) missing.add(id)
+    return renderFileBar()
+  }
+  if (mod === meta.file.lastModified || declined.get(id) === mod) return renderFileBar()
+
+  const disk = await lf.readFile(handle)
+  if (disk.text === docs.getDiskText(id)) {
+    docs.updateDoc(id, { file: { lastModified: mod } })
+    return renderFileBar()
+  }
+  if (id === activeId) {
+    flushSource()
+    saveNow()
+  }
+  const dirty = docs.isDirty(id)
+  const reload =
+    !dirty ||
+    window.confirm(
+      `“${meta.file.name}” was changed by another app.\n\nReload it from disk? Your unsaved changes here will be lost.\n(Cancel keeps your version.)`,
+    )
+  if (reload) {
+    docs.saveContent(id, disk.text)
+    docs.setDiskText(id, disk.text)
+    docs.updateDoc(id, { file: { lastModified: mod, crlf: disk.crlf, bom: disk.bom } })
+    conflicts.delete(id)
+    declined.delete(id)
+    if (id === activeId) loadDocument(disk.text)
+    toast(`Reloaded ${meta.file.name} (changed on disk)`)
+  } else {
+    declined.set(id, mod)
+    conflicts.add(id)
+  }
+  renderTabs()
+}
+
+function renderFileBar() {
+  const meta = docs.getDoc(activeId)
+  const file = meta?.file
+  saveFileBtn.textContent = file ? 'Save' : 'Save as file…'
+  saveFileBtn.title = file ? `Save to ${file.name} (Ctrl+S)` : 'Save as a file on this device (Ctrl+S)'
+  filebar.hidden = !file
+  if (!file) {
+    noticeEl.hidden = true
+    return
+  }
+  fileNameEl.textContent = file.name
+  autosaveChk.checked = file.autosave
+  const perm = perms.get(activeId)
+  const needsPermission = perm !== undefined && perm !== 'granted'
+  reconnectBtn.hidden = !needsPermission
+  let status: string
+  let tone = ''
+  if (missing.has(activeId)) {
+    status = 'File not found: it was moved or deleted. Save to pick a new location.'
+    tone = 'warn'
+  } else if (conflicts.has(activeId)) {
+    status = 'Changed on disk by another app; Save will ask before overwriting'
+    tone = 'warn'
+  } else if (docs.isDirty(activeId, currentMarkdown())) {
+    status = needsPermission ? 'Unsaved changes · Save will ask for access' : 'Unsaved changes'
+    tone = 'dirty'
+  } else {
+    status = needsPermission ? 'Saved · click Reconnect to check for outside changes' : 'Saved'
+  }
+  fileStatusEl.textContent = status
+  fileStatusEl.dataset.tone = tone
+}
+
+function maybeShowNormalizeNotice() {
+  const meta = docs.getDoc(activeId)
+  if (!meta?.file || meta.file.notified) return
+  docs.updateDoc(activeId, { file: { notified: true } })
+  noticeEl.hidden = false
+}
+
+saveFileBtn.addEventListener('click', () => void saveActive())
+newFileBtn.addEventListener('click', () => void newLocalFile())
+$('btn-notice-close').addEventListener('click', () => (noticeEl.hidden = true))
+
+reconnectBtn.addEventListener('click', async () => {
+  const id = activeId
+  const handle = await lf.handles.get(id)
+  if (!handle) return
+  const ok = await lf.requestPermission(handle)
+  perms.set(id, ok ? 'granted' : 'prompt')
+  if (ok) await checkDisk(id)
+  renderFileBar()
+})
+
+autosaveChk.addEventListener('change', async () => {
+  const id = activeId
+  const on = autosaveChk.checked
+  if (on) {
+    // The checkbox click is a user gesture, so we may ask for write access now.
+    const handle = await lf.handles.get(id)
+    if (!handle || !(await lf.requestPermission(handle))) {
+      autosaveChk.checked = false
+      toast('Autosave needs permission to write to the file')
+      return
+    }
+    perms.set(id, 'granted')
+  }
+  docs.updateDoc(id, { file: { autosave: on } })
+  if (on) {
+    flushSource()
+    saveNow()
+    void saveLinked(id, true)
+  }
+  renderFileBar()
+})
+
+// Ctrl/Cmd+S saves (to the linked file, or "save as"); without support it downloads.
+document.addEventListener(
+  'keydown',
+  (e) => {
+    if (!(e.ctrlKey || e.metaKey) || e.altKey || e.key.toLowerCase() !== 's') return
+    e.preventDefault()
+    if (lf.supported) void saveActive()
+    else $('btn-save').click()
+  },
+  true,
+)
+
+// Coming back to the page: pick up changes other apps made to the open file.
+window.addEventListener('focus', () => void checkDisk(activeId))
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') void checkDisk(activeId)
+})
+
+if (import.meta.env.DEV) Object.assign(window, { __lf: { openLocalFiles, saveActive, checkDisk, perms } })
+
+renderTabs()
+void checkDisk(activeId)

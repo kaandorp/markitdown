@@ -20,6 +20,7 @@
       <input id="doc-name" class="doc-name" type="text" placeholder="Untitled" aria-label="Document name" maxlength="120" spellcheck="false" autocomplete="off" />
       <div class="actions">
         <button id="btn-open" title="Open a .md file as a new document (or drop one on the page)">Open</button>
+        <button id="btn-save-file" title="Save to a file on this device (Ctrl+S)" hidden>Save</button>
         <button id="btn-save" title="Download as .md">Download</button>
         <span class="sep"></span>
         <button id="btn-copy-md" class="primary" title="Copy the whole document as Markdown">Copy Markdown</button>
@@ -46,21 +47,38 @@
       <nav class="sidebar" id="sidebar" aria-label="Documents">
         <div class="sidebar-head">
           <span>Documents</span>
-          <button id="btn-new" title="New document">+ New</button>
+          <span class="sidebar-actions">
+            <button id="btn-new" title="New document (stored in this browser)">+ New</button>
+            <button id="btn-new-file" title="New Markdown file on this device" hidden>+ File</button>
+          </span>
         </div>
         <ul class="doc-tabs" id="doc-tabs" role="tablist" aria-orientation="vertical"></ul>
       </nav>
-      <main class="split" id="split">
-        <section class="pane pane-left" id="pane-left">
-          <div class="toolbar" id="toolbar" role="toolbar" aria-label="Formatting"></div>
-          <div class="pane-body" id="wysiwyg"></div>
-        </section>
-        <div class="divider" id="divider" role="separator" aria-orientation="vertical" tabindex="0" title="Drag to resize"></div>
-        <section class="pane pane-right" id="pane-right">
-          <div class="pane-header">Markdown source</div>
-          <div class="pane-body" id="source"></div>
-        </section>
-      </main>
+      <div class="main-col">
+        <div class="filebar" id="filebar" hidden>
+          <span class="file-icon" aria-hidden="true"></span>
+          <span class="file-name" id="file-name"></span>
+          <span class="file-status" id="file-status" aria-live="polite"></span>
+          <button id="btn-reconnect" hidden>Reconnect</button>
+          <span class="filebar-spacer"></span>
+          <label class="autosave"><input type="checkbox" id="chk-autosave" /> Autosave</label>
+        </div>
+        <div class="file-notice" id="file-notice" hidden>
+          <span>Editing on the left rewrites this file's Markdown in a normalized style (e.g. <code>*</code> bullets become <code>-</code>). Edit on the right to change only what you type.</span>
+          <button id="btn-notice-close" aria-label="Dismiss">×</button>
+        </div>
+        <main class="split" id="split">
+          <section class="pane pane-left" id="pane-left">
+            <div class="toolbar" id="toolbar" role="toolbar" aria-label="Formatting"></div>
+            <div class="pane-body" id="wysiwyg"></div>
+          </section>
+          <div class="divider" id="divider" role="separator" aria-orientation="vertical" tabindex="0" title="Drag to resize"></div>
+          <section class="pane pane-right" id="pane-right">
+            <div class="pane-header">Markdown source</div>
+            <div class="pane-body" id="source"></div>
+          </section>
+        </main>
+      </div>
     </div>
 
     <footer class="statusbar">

@@ -24,6 +24,18 @@ Rich-text (WYSIWYG) editing on the left, Markdown source on the right, and the t
   their first heading. Each document has its own undo history.
 - **Autosave** of every document to the browser's localStorage. **Open** `.md` files (button or drag-and-drop;
   several at once, each as a new document) and **download** the open one as `.md`, named after the document.
+- **Edit files on your device** (Chrome, Edge, Opera on desktop, via the File System Access API):
+  - **Open** or drag-and-drop `.md` files to edit them in place; **+ File** creates a new one. Linked files show a
+    file icon in the sidebar, and **Save** / Ctrl+S on a browser document saves it as a file.
+  - Ctrl+S / **Save** writes to the file; a ● marks unsaved changes. A per-file **Autosave** switch writes about
+    1 s after you stop typing. Unsaved edits are also kept as a draft in the browser.
+  - Line endings (CRLF/LF) and a UTF-8 BOM are preserved. Edits made by other apps are picked up when you return to
+    the page (reloaded silently if you have no unsaved changes, otherwise you're asked), and Save never overwrites
+    them without asking.
+  - Closing a linked tab never deletes the file. After a browser restart, Chrome may ask once to allow access again.
+  - Editing on the left normalizes the file's Markdown formatting (a one-time notice explains this); edits on the
+    right change only what you type.
+  - In Firefox and Safari these options are hidden; Open/Download work on copies as before.
 - Resizable split view, light/dark theme (follows the OS, with a toggle), stacked layout on small screens.
 
 Everything runs in the browser; no text leaves your machine.
