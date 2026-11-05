@@ -2,6 +2,8 @@ import type { Editor } from '@tiptap/core'
 
 interface Btn {
   label: string
+  /** Sprite icon id (see index.html); shown instead of the label. */
+  icon?: string
   title: string
   run: (e: Editor) => void
   active?: (e: Editor) => boolean
@@ -38,30 +40,30 @@ const GROUPS: Btn[][] = [
   ],
   [
     { label: 'B', cls: 'b', title: `Bold (${mod}B)`, run: (e) => e.chain().focus().toggleBold().run(), active: (e) => e.isActive('bold') },
-    { label: 'I', cls: 'i', title: `Italic (${mod}I)`, run: (e) => e.chain().focus().toggleItalic().run(), active: (e) => e.isActive('italic') },
+    { label: 'I', cls: 'it', title: `Italic (${mod}I)`, run: (e) => e.chain().focus().toggleItalic().run(), active: (e) => e.isActive('italic') },
     { label: 'S', cls: 's', title: `Strikethrough (${mod}Shift+S)`, run: (e) => e.chain().focus().toggleStrike().run(), active: (e) => e.isActive('strike') },
-    { label: '</>', cls: 'mono', title: `Inline code (${mod}E)`, run: (e) => e.chain().focus().toggleCode().run(), active: (e) => e.isActive('code') },
-    { label: 'Link', title: 'Link', run: promptLink, active: (e) => e.isActive('link') },
+    { label: 'Code', icon: 'i-code', title: `Inline code (${mod}E)`, run: (e) => e.chain().focus().toggleCode().run(), active: (e) => e.isActive('code') },
+    { label: 'Link', icon: 'i-link', title: 'Link', run: promptLink, active: (e) => e.isActive('link') },
   ],
   [
-    { label: '• List', title: `Bullet list (${mod}Shift+8)`, run: (e) => e.chain().focus().toggleBulletList().run(), active: (e) => e.isActive('bulletList') },
-    { label: '1. List', title: `Numbered list (${mod}Shift+7)`, run: (e) => e.chain().focus().toggleOrderedList().run(), active: (e) => e.isActive('orderedList') },
-    { label: '☐ Tasks', title: `Task list (${mod}Shift+9)`, run: (e) => e.chain().focus().toggleTaskList().run(), active: (e) => e.isActive('taskList') },
-    { label: '❝', title: `Quote (${mod}Shift+B)`, run: (e) => e.chain().focus().toggleBlockquote().run(), active: (e) => e.isActive('blockquote') },
-    { label: '{ }', cls: 'mono', title: `Code block (${mod}Alt+C)`, run: (e) => e.chain().focus().toggleCodeBlock().run(), active: (e) => e.isActive('codeBlock') },
-    { label: 'Table', title: 'Insert table', run: (e) => e.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run() },
-    { label: '―', title: 'Divider', run: (e) => e.chain().focus().setHorizontalRule().run() },
+    { label: 'Bullets', icon: 'i-ul', title: `Bullet list (${mod}Shift+8)`, run: (e) => e.chain().focus().toggleBulletList().run(), active: (e) => e.isActive('bulletList') },
+    { label: 'Numbers', icon: 'i-ol', title: `Numbered list (${mod}Shift+7)`, run: (e) => e.chain().focus().toggleOrderedList().run(), active: (e) => e.isActive('orderedList') },
+    { label: 'Tasks', icon: 'i-tasks', title: `Task list (${mod}Shift+9)`, run: (e) => e.chain().focus().toggleTaskList().run(), active: (e) => e.isActive('taskList') },
+    { label: 'Quote', icon: 'i-quote', title: `Quote (${mod}Shift+B)`, run: (e) => e.chain().focus().toggleBlockquote().run(), active: (e) => e.isActive('blockquote') },
+    { label: 'Code block', icon: 'i-codeblock', title: `Code block (${mod}Alt+C)`, run: (e) => e.chain().focus().toggleCodeBlock().run(), active: (e) => e.isActive('codeBlock') },
+    { label: 'Table', icon: 'i-table', title: 'Insert table', run: (e) => e.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run() },
+    { label: 'Divider', icon: 'i-hr', title: 'Divider', run: (e) => e.chain().focus().setHorizontalRule().run() },
   ],
   [
-    { label: '+Row', title: 'Add row below', visible: inTable, run: (e) => e.chain().focus().addRowAfter().run() },
-    { label: '+Col', title: 'Add column right', visible: inTable, run: (e) => e.chain().focus().addColumnAfter().run() },
-    { label: '−Row', title: 'Delete row', visible: inTable, run: (e) => e.chain().focus().deleteRow().run() },
-    { label: '−Col', title: 'Delete column', visible: inTable, run: (e) => e.chain().focus().deleteColumn().run() },
-    { label: '✕Table', title: 'Delete table', visible: inTable, run: (e) => e.chain().focus().deleteTable().run() },
+    { label: 'Add row', title: 'Add row below', visible: inTable, run: (e) => e.chain().focus().addRowAfter().run() },
+    { label: 'Add column', title: 'Add column right', visible: inTable, run: (e) => e.chain().focus().addColumnAfter().run() },
+    { label: 'Delete row', title: 'Delete row', visible: inTable, run: (e) => e.chain().focus().deleteRow().run() },
+    { label: 'Delete column', title: 'Delete column', visible: inTable, run: (e) => e.chain().focus().deleteColumn().run() },
+    { label: 'Delete table', title: 'Delete table', visible: inTable, run: (e) => e.chain().focus().deleteTable().run() },
   ],
   [
-    { label: '↶', title: `Undo (${mod}Z)`, run: (e) => e.chain().focus().undo().run() },
-    { label: '↷', title: `Redo (${mod}Shift+Z)`, run: (e) => e.chain().focus().redo().run() },
+    { label: 'Undo', icon: 'i-undo', title: `Undo (${mod}Z)`, run: (e) => e.chain().focus().undo().run() },
+    { label: 'Redo', icon: 'i-redo', title: `Redo (${mod}Shift+Z)`, run: (e) => e.chain().focus().redo().run() },
   ],
 ]
 
@@ -75,7 +77,12 @@ export function mountToolbar(el: HTMLElement, editor: Editor) {
     for (const def of defs) {
       const btn = document.createElement('button')
       btn.type = 'button'
-      btn.textContent = def.label
+      if (def.icon) {
+        btn.innerHTML = `<svg class="i" aria-hidden="true"><use href="#${def.icon}"></use></svg>`
+        btn.classList.add('icon')
+      } else {
+        btn.textContent = def.label
+      }
       btn.title = def.title
       btn.setAttribute('aria-label', def.title)
       if (def.cls) btn.classList.add(def.cls)

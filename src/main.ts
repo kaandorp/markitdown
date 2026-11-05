@@ -1,3 +1,7 @@
+import '@fontsource/noto-sans/300.css'
+import '@fontsource/noto-sans/400.css'
+import '@fontsource/noto-sans/700.css'
+import '@fontsource/noto-serif/300-italic.css'
 import './style.css'
 import type { Node as PMNode } from '@tiptap/pm/model'
 import { EditorState } from '@tiptap/pm/state'
@@ -619,7 +623,11 @@ sidebarBtn.addEventListener('click', () => setSidebar(workspace.classList.contai
 const media = window.matchMedia('(prefers-color-scheme: dark)')
 const effectiveTheme = () => document.documentElement.dataset.theme ?? (media.matches ? 'dark' : 'light')
 const themeBtn = $('btn-theme')
-const paintThemeBtn = () => (themeBtn.textContent = effectiveTheme() === 'dark' ? '☀ Light' : '☾ Dark')
+const paintThemeBtn = () => {
+  const dark = effectiveTheme() === 'dark'
+  themeBtn.innerHTML = `<svg class="i" aria-hidden="true"><use href="#${dark ? 'i-sun' : 'i-moon'}"></use></svg><span class="collapsed-label">${dark ? 'Light theme' : 'Dark theme'}</span>`
+  themeBtn.setAttribute('aria-label', dark ? 'Switch to light theme' : 'Switch to dark theme')
+}
 paintThemeBtn()
 media.addEventListener('change', paintThemeBtn)
 themeBtn.addEventListener('click', () => {
@@ -668,6 +676,7 @@ divider.addEventListener('keydown', (e) => {
 const filebar = $('filebar')
 const fileNameEl = $('file-name')
 const fileStatusEl = $('file-status')
+const statusHint = $('status-hint')
 const reconnectBtn = $<HTMLButtonElement>('btn-reconnect')
 const autosaveChk = $<HTMLInputElement>('chk-autosave')
 const noticeEl = $('file-notice')
@@ -901,9 +910,10 @@ async function checkDisk(id: string) {
 function renderFileBar() {
   const meta = docs.getDoc(activeId)
   const file = meta?.file
-  saveFileBtn.textContent = file ? 'Save' : 'Save as file…'
+  saveFileBtn.querySelector('.label')!.textContent = file ? 'Save' : 'Save as file…'
   saveFileBtn.title = file ? `Save to ${file.name} (Ctrl+S)` : 'Save as a file on this device (Ctrl+S)'
   filebar.hidden = !file
+  statusHint.textContent = file ? `Ctrl+S saves to ${file.name}` : ''
   if (!file) {
     noticeEl.hidden = true
     return
@@ -913,21 +923,28 @@ function renderFileBar() {
   const perm = perms.get(activeId)
   const needsPermission = perm !== undefined && perm !== 'granted'
   reconnectBtn.hidden = !needsPermission
+  // Status colours are functional only and always come with a word and an icon.
   let status: string
-  let tone = ''
+  let tone: 'saved' | 'dirty' | 'changed' | 'missing' | 'access'
   if (missing.has(activeId)) {
-    status = 'File not found: it was moved or deleted. Save to pick a new location.'
-    tone = 'warn'
+    status = 'File not found. Save to choose a new place.'
+    tone = 'missing'
   } else if (conflicts.has(activeId)) {
-    status = 'Changed on disk by another app; Save will ask before overwriting'
-    tone = 'warn'
+    status = 'Changed on disk by another app'
+    tone = 'changed'
   } else if (docs.isDirty(activeId, currentMarkdown())) {
-    status = needsPermission ? 'Unsaved changes · Save will ask for access' : 'Unsaved changes'
+    status = 'Unsaved changes'
     tone = 'dirty'
+  } else if (needsPermission) {
+    status = 'Access needs to be allowed again'
+    tone = 'access'
   } else {
-    status = needsPermission ? 'Saved · click Reconnect to check for outside changes' : 'Saved'
+    status = 'Saved'
+    tone = 'saved'
   }
-  fileStatusEl.textContent = status
+  const icon = { saved: 'i-check', dirty: '', changed: 'i-warn', missing: 'i-error', access: 'i-info' }[tone]
+  fileStatusEl.innerHTML = icon ? `<svg class="i i-sm" aria-hidden="true"><use href="#${icon}"></use></svg>` : '<span class="dot" aria-hidden="true"></span>'
+  fileStatusEl.append(status)
   fileStatusEl.dataset.tone = tone
 }
 
@@ -991,6 +1008,43 @@ window.addEventListener('focus', () => void checkDisk(activeId))
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') void checkDisk(activeId)
 })
+
+// ---------------------------------------------------------------- phone layout
+
+// One pane at a time on narrow screens: "Rich text" or "Markdown".
+const viewButtons = [...document.querySelectorAll<HTMLButtonElement>('.view-switch [data-view]')]
+for (const btn of viewButtons) {
+  btn.addEventListener('click', () => {
+    flushSource()
+    split.dataset.view = btn.dataset.view!
+    for (const b of viewButtons) b.setAttribute('aria-selected', String(b === btn))
+    if (btn.dataset.view === 'source') source.view.requestMeasure()
+  })
+}
+
+// The app-bar actions fold into a "More" menu on narrow screens.
+const moreBtn = $<HTMLButtonElement>('btn-more')
+const actionsEl = $('actions')
+const setMore = (open: boolean) => {
+  actionsEl.classList.toggle('open', open)
+  moreBtn.setAttribute('aria-expanded', String(open))
+}
+moreBtn.addEventListener('click', (e) => {
+  e.stopPropagation()
+  setMore(!actionsEl.classList.contains('open'))
+})
+actionsEl.addEventListener('click', (e) => {
+  // Keep the panel open while using the Clean up submenu.
+  if (!(e.target as HTMLElement).closest('#btn-cleanup')) setMore(false)
+})
+document.addEventListener('click', (e) => {
+  if (!actionsEl.contains(e.target as Node)) setMore(false)
+})
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && actionsEl.classList.contains('open')) setMore(false)
+})
+
+$('btn-copy-md-mobile').addEventListener('click', () => $('btn-copy-md').click())
 
 if (import.meta.env.DEV) Object.assign(window, { __lf: { openLocalFiles, saveActive, checkDisk, perms } })
 

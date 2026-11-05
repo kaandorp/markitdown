@@ -21,10 +21,10 @@ const mdHighlight = HighlightStyle.define([
 ])
 
 const theme = EditorView.theme({
-  '&': { height: '100%', backgroundColor: 'var(--bg)', color: 'var(--fg)' },
-  '.cm-scroller': { fontFamily: 'var(--mono)', fontSize: '13.5px', lineHeight: '1.6' },
-  '.cm-content': { padding: '16px 0', caretColor: 'var(--fg)' },
-  '.cm-gutters': { backgroundColor: 'var(--bg)', color: 'var(--faint)', border: 'none' },
+  '&': { height: '100%', backgroundColor: 'var(--bg-soft)', color: 'var(--fg)' },
+  '.cm-scroller': { fontFamily: 'var(--mono)', fontSize: '14px', lineHeight: '22px' },
+  '.cm-content': { padding: '20px 0', caretColor: 'var(--fg)' },
+  '.cm-gutters': { backgroundColor: 'var(--bg-soft)', color: 'var(--muted)', border: 'none' },
   '.cm-activeLine': { backgroundColor: 'var(--active-line)' },
   '.cm-activeLineGutter': { backgroundColor: 'transparent', color: 'var(--muted)' },
   '&.cm-focused': { outline: 'none' },

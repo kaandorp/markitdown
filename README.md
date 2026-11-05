@@ -40,6 +40,16 @@ Rich-text (WYSIWYG) editing on the left, Markdown source on the right, and the t
 
 Everything runs in the browser; no text leaves your machine.
 
+## Design
+
+The interface follows the Roche corporate brand: warm base tones (`neutral-4`, `grey-5`) with white space, Roche Blue
+for actions and the active document, sentence case, and nothing smaller than 14px. Type uses **Roche Sans** and
+**Roche Serif** when they are installed on your computer; otherwise the brand's approved fallback, **Noto Sans / Noto
+Serif** (SIL Open Font License), bundled with the app. No Roche font files or logos are included in this repository.
+The brand defines only a light theme; the dark theme is derived from its greys and blues and checked for WCAG AA
+contrast. On narrow windows the actions fold into a **More** menu; on phones you switch between **Rich text** and
+**Markdown**, with **Copy Markdown** at the bottom.
+
 ## Development
 
 ```bash
