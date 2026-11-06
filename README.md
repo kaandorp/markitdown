@@ -36,6 +36,9 @@ Rich-text (WYSIWYG) editing on the left, Markdown source on the right, and the t
   - Editing on the left normalizes the file's Markdown formatting (a one-time notice explains this); edits on the
     right change only what you type.
   - In Firefox and Safari these options are hidden; Open/Download work on copies as before.
+- **Synced scrolling**: both panes stay aligned by content, block by block (a heading on the left sits level with its
+  `##` line on the right), while you scroll either pane or type in it. Turn it off with **Sync scroll** in the Markdown
+  pane's header.
 - Resizable split view, light/dark theme (follows the OS, with a toggle), stacked layout on small screens.
 
 Everything runs in the browser; no text leaves your machine.

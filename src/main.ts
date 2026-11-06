@@ -8,6 +8,7 @@ import { EditorState } from '@tiptap/pm/state'
 import { createWysiwyg } from './wysiwyg'
 import { createSource } from './source'
 import { mountToolbar } from './toolbar'
+import { createScrollSync } from './scrollsync'
 import { collapseBlankLines, markdownToPlainText, tidyMarkdown, trimTrailingWhitespace } from './markdown'
 import { WELCOME } from './welcome'
 import * as docs from './docs'
@@ -53,6 +54,9 @@ let activeId = docs.initDocs(WELCOME)
 docs.setActiveId(activeId)
 const initial = docs.getContent(activeId)
 
+/** Set up below, once both editors exist; source-pane activity before then is ignored. */
+let scrollSync: ReturnType<typeof createScrollSync> | null = null
+
 /** True while the WYSIWYG is being updated from the source pane. */
 let applyingFromSource = false
 let sourceTimer = 0
@@ -73,6 +77,9 @@ const source = createSource($('source'), '', (md) => {
   sourceTimer = window.setTimeout(flushSource, 120)
   scheduleSave(md)
   scheduleStats(md)
+}, (byUser) => {
+  if (byUser) scrollSync?.changed('right')
+  else scrollSync?.resync()
 })
 
 function flushSource() {
@@ -127,6 +134,7 @@ function loadDocument(md: string) {
   // Show the source exactly as saved (the user's own text).
   source.reset(md)
   updateStats(md)
+  scrollSync?.resync()
 }
 
 // Show the source exactly as saved (the user's own text).
@@ -205,6 +213,34 @@ const paneLeft = $('pane-left')
 let fullWidth = store.get(KEY_FULL_WIDTH) === '1'
 paneLeft.classList.toggle('is-full-width', fullWidth)
 
+// ---------------------------------------------------------------- scroll sync
+
+const KEY_SYNC = 'markitdown:scrollsync'
+let syncScroll = store.get(KEY_SYNC) !== '0'
+scrollSync = createScrollSync({
+  editor,
+  leftScroller: $('wysiwyg'),
+  source: source.view,
+  enabled: () => syncScroll,
+})
+// Typing or moving the caret on the left keeps its Markdown level on the right;
+// content arriving from the source pane re-aligns from there.
+editor.on('transaction', ({ transaction }) => {
+  if (editor.view.hasFocus()) scrollSync.changed('left')
+  else if (transaction.docChanged) scrollSync.resync()
+})
+window.addEventListener('resize', () => scrollSync.resync())
+
+const syncBtn = $<HTMLButtonElement>('btn-sync')
+const paintSyncBtn = () => syncBtn.setAttribute('aria-pressed', String(syncScroll))
+paintSyncBtn()
+syncBtn.addEventListener('click', () => {
+  syncScroll = !syncScroll
+  store.set(KEY_SYNC, syncScroll ? '1' : '0')
+  paintSyncBtn()
+  if (syncScroll) scrollSync.resync()
+})
+
 const refreshToolbar = mountToolbar($('toolbar'), editor, [
   {
     label: 'Full width',
@@ -216,6 +252,7 @@ const refreshToolbar = mountToolbar($('toolbar'), editor, [
       paneLeft.classList.toggle('is-full-width', fullWidth)
       store.set(KEY_FULL_WIDTH, fullWidth ? '1' : '0')
       refreshToolbar()
+      scrollSync.resync()
     },
   },
 ])
@@ -673,7 +710,10 @@ divider.addEventListener('pointerdown', (e) => {
   divider.setPointerCapture(e.pointerId)
   split.classList.add('dragging')
   const rect = split.getBoundingClientRect()
-  const move = (ev: PointerEvent) => setSplit(((ev.clientX - rect.left) / rect.width) * 100)
+  const move = (ev: PointerEvent) => {
+    setSplit(((ev.clientX - rect.left) / rect.width) * 100)
+    scrollSync.resync()
+  }
   const up = (ev: PointerEvent) => {
     divider.removeEventListener('pointermove', move)
     divider.removeEventListener('pointerup', up)

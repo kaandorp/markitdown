@@ -652,10 +652,23 @@ input:focus-visible,
 .pane-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   min-height: 52px;
   padding: 0 20px;
   border-bottom: 1px solid var(--border);
   color: var(--muted);
+}
+/* "Sync scroll" toggle: blue when on, muted when off. */
+.sync-toggle {
+  margin-right: -8px;
+  color: var(--muted);
+}
+.sync-toggle[aria-pressed='true'] {
+  color: var(--accent);
+}
+.sync-toggle:hover {
+  background: var(--bg);
 }
 #source {
   overflow: hidden;

@@ -34,7 +34,13 @@ const theme = EditorView.theme({
   '.cm-cursor': { borderLeftColor: 'var(--fg)' },
 })
 
-export function createSource(parent: HTMLElement, doc: string, onChange: (md: string) => void) {
+export function createSource(
+  parent: HTMLElement,
+  doc: string,
+  onChange: (md: string) => void,
+  /** Any content or selection change, from typing or from the other pane. */
+  onActivity?: (byUser: boolean) => void,
+) {
   const wrap = new Compartment()
   const extensions = [
     lineNumbers(),
@@ -49,9 +55,9 @@ export function createSource(parent: HTMLElement, doc: string, onChange: (md: st
     placeholder('Markdown appears here — or type it directly'),
     theme,
     EditorView.updateListener.of((u) => {
-      if (!u.docChanged) return
-      if (u.transactions.some((tr) => tr.annotation(External))) return
-      onChange(u.state.doc.toString())
+      const external = u.transactions.some((tr) => tr.annotation(External))
+      if (u.docChanged && !external) onChange(u.state.doc.toString())
+      if (u.docChanged || u.selectionSet) onActivity?.(!external && u.view.hasFocus)
     }),
   ]
   const view = new EditorView({ parent, state: EditorState.create({ doc, extensions }) })
