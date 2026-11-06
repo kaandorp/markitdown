@@ -198,7 +198,27 @@ updateStats(currentMarkdown())
 
 // ---------------------------------------------------------------- toolbar
 
-mountToolbar($('toolbar'), editor)
+// Full width: the rich-text document drops its 760px reading width. Remembered
+// per browser, like the theme and the split position.
+const KEY_FULL_WIDTH = 'markitdown:fullwidth'
+const paneLeft = $('pane-left')
+let fullWidth = store.get(KEY_FULL_WIDTH) === '1'
+paneLeft.classList.toggle('is-full-width', fullWidth)
+
+const refreshToolbar = mountToolbar($('toolbar'), editor, [
+  {
+    label: 'Full width',
+    icon: 'i-width',
+    title: 'Full width',
+    active: () => fullWidth,
+    run: () => {
+      fullWidth = !fullWidth
+      paneLeft.classList.toggle('is-full-width', fullWidth)
+      store.set(KEY_FULL_WIDTH, fullWidth ? '1' : '0')
+      refreshToolbar()
+    },
+  },
+])
 
 // ---------------------------------------------------------------- clipboard
 

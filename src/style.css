@@ -696,6 +696,9 @@ input:focus-visible,
   display: flex;
   gap: 2px;
 }
+.tb-end {
+  margin-left: auto;
+}
 .tb-group[hidden],
 .toolbar button[hidden] {
   display: none;
@@ -746,6 +749,9 @@ input:focus-visible,
   font-size: 16px;
   line-height: 26px;
   font-weight: 300; /* Roche Sans Light: body */
+}
+.pane-left.is-full-width .prose {
+  max-width: none;
 }
 .prose :where(p, ul, ol, blockquote, pre, table, h1, h2, h3, h4, h5, h6, hr) {
   margin-top: 0;
@@ -1236,6 +1242,9 @@ input:focus-visible,
   }
   .toolbar button.icon {
     width: 44px;
+  }
+  .tb-end {
+    display: none; /* the pane is narrower than the reading width anyway */
   }
   .prose {
     padding: 20px 20px 48px;

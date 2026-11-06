@@ -1,6 +1,6 @@
 import type { Editor } from '@tiptap/core'
 
-interface Btn {
+export interface Btn {
   label: string
   /** Sprite icon id (see index.html); shown instead of the label. */
   icon?: string
@@ -67,13 +67,18 @@ const GROUPS: Btn[][] = [
   ],
 ]
 
-export function mountToolbar(el: HTMLElement, editor: Editor) {
+/**
+ * Build the formatting toolbar. `endGroup` holds view controls that sit at
+ * the toolbar's right end (e.g. the full-width toggle). Returns `refresh`,
+ * for state changes that don't come from an editor transaction.
+ */
+export function mountToolbar(el: HTMLElement, editor: Editor, endGroup: Btn[] = []) {
   const entries: { btn: HTMLButtonElement; def: Btn }[] = []
   const groups: { div: HTMLElement; defs: Btn[] }[] = []
 
-  for (const defs of GROUPS) {
+  for (const defs of endGroup.length ? [...GROUPS, endGroup] : GROUPS) {
     const div = document.createElement('div')
-    div.className = 'tb-group'
+    div.className = defs === endGroup ? 'tb-group tb-end' : 'tb-group'
     for (const def of defs) {
       const btn = document.createElement('button')
       btn.type = 'button'
@@ -111,4 +116,5 @@ export function mountToolbar(el: HTMLElement, editor: Editor) {
   editor.on('transaction', refresh)
   editor.on('selectionUpdate', refresh)
   refresh()
+  return refresh
 }
