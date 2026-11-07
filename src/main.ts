@@ -241,6 +241,12 @@ syncBtn.addEventListener('click', () => {
   if (syncScroll) scrollSync.resync()
 })
 
+// Markdown source pane: shown or hidden (desktop; phones switch views instead).
+const KEY_SOURCE = 'markitdown:source'
+const splitEl = $('split')
+let sourceVisible = store.get(KEY_SOURCE) !== '0'
+splitEl.classList.toggle('source-hidden', !sourceVisible)
+
 const refreshToolbar = mountToolbar($('toolbar'), editor, [
   {
     label: 'Full width',
@@ -253,6 +259,24 @@ const refreshToolbar = mountToolbar($('toolbar'), editor, [
       store.set(KEY_FULL_WIDTH, fullWidth ? '1' : '0')
       refreshToolbar()
       scrollSync.resync()
+    },
+  },
+  {
+    label: 'Markdown source',
+    icon: 'i-source-pane',
+    title: 'Show Markdown source',
+    active: () => sourceVisible,
+    run: () => {
+      sourceVisible = !sourceVisible
+      flushSource()
+      splitEl.classList.toggle('source-hidden', !sourceVisible)
+      store.set(KEY_SOURCE, sourceVisible ? '1' : '0')
+      refreshToolbar()
+      if (sourceVisible) {
+        // CodeMirror measured nothing while hidden.
+        source.view.requestMeasure()
+        scrollSync.resync()
+      }
     },
   },
 ])

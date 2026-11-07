@@ -39,6 +39,8 @@ Rich-text (WYSIWYG) editing on the left, Markdown source on the right, and the t
 - **Synced scrolling**: both panes stay aligned by content, block by block (a heading on the left sits level with its
   `##` line on the right), while you scroll either pane or type in it. Turn it off with **Sync scroll** in the Markdown
   pane's header.
+- **Show or hide the Markdown source** with the pane button at the right end of the formatting toolbar, next to
+  **Full width**; hidden, the rich-text pane takes the whole width.
 - Resizable split view, light/dark theme (follows the OS, with a toggle), stacked layout on small screens.
 
 Everything runs in the browser; no text leaves your machine.

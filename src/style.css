@@ -694,6 +694,17 @@ input:focus-visible,
   outline: none;
 }
 
+/* Markdown source hidden (desktop only: phones switch between the two views). */
+@media (min-width: 801px) {
+  .split.source-hidden {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .split.source-hidden .divider,
+  .split.source-hidden .pane-right {
+    display: none;
+  }
+}
+
 /* ------------------------------------------------------------ formatting toolbar */
 
 .toolbar {
