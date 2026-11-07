@@ -777,6 +777,11 @@ input:focus-visible,
 .pane-left.is-full-width .prose {
   max-width: none;
 }
+/* The editing surface shows focus with its caret; no ring around the whole page. */
+.prose:focus,
+.prose:focus-visible {
+  outline: none;
+}
 .prose :where(p, ul, ol, blockquote, pre, table, h1, h2, h3, h4, h5, h6, hr) {
   margin-top: 0;
   margin-bottom: 0;
