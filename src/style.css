@@ -1231,6 +1231,9 @@ input:focus-visible,
   .filebar {
     padding: 6px 12px;
   }
+  .file-status {
+    white-space: normal; /* longer states wrap instead of overflowing */
+  }
   .view-switch {
     display: flex;
     margin: 12px 16px 0;

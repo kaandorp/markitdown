@@ -1009,12 +1009,21 @@ function renderFileBar() {
   reconnectBtn.hidden = !needsPermission
   // Status colours are functional only and always come with a word and an icon.
   let status: string
+  let hint = ''
   let tone: 'saved' | 'dirty' | 'changed' | 'missing' | 'access'
   if (missing.has(activeId)) {
     status = 'File not found. Save to choose a new place.'
+    if (file.autosave) {
+      status += ' · autosave paused'
+      hint = 'Autosave resumes once you save the file to a new place.'
+    }
     tone = 'missing'
   } else if (conflicts.has(activeId)) {
     status = 'Changed on disk by another app'
+    if (file.autosave) {
+      status += ' · autosave paused'
+      hint = 'Autosave won\'t overwrite the other app\'s changes. It resumes after you reload the file (switch away and back) or save your version with Ctrl+S.'
+    }
     tone = 'changed'
   } else if (docs.isDirty(activeId, currentMarkdown())) {
     status = 'Unsaved changes'
@@ -1030,6 +1039,7 @@ function renderFileBar() {
   fileStatusEl.innerHTML = icon ? `<svg class="i i-sm" aria-hidden="true"><use href="#${icon}"></use></svg>` : '<span class="dot" aria-hidden="true"></span>'
   fileStatusEl.append(status)
   fileStatusEl.dataset.tone = tone
+  fileStatusEl.title = hint
 }
 
 function maybeShowNormalizeNotice() {
