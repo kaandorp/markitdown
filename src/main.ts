@@ -1142,6 +1142,22 @@ $('btn-copy-md-mobile').addEventListener('click', () => $('btn-copy-md').click()
 
 if (import.meta.env.DEV) Object.assign(window, { __lf: { openLocalFiles, saveActive, checkDisk, perms } })
 
+// ---------------------------------------------------------------- version (status bar, bottom right)
+
+{
+  const el = $<HTMLAnchorElement>('app-version')
+  const short = __APP_COMMIT__.slice(0, 7)
+  const label = import.meta.env.DEV ? 'dev' : short
+  el.textContent = `v${__APP_VERSION__}${label ? ` · ${label}` : ''}`
+  const built = new Date(__BUILD_DATE__).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+  el.title = `Markitdown ${__APP_VERSION__}${short ? `, commit ${short}` : ''}, built ${built}`
+  if (__APP_REPO__ && __APP_COMMIT__ && !import.meta.env.DEV) {
+    el.href = `https://github.com/${__APP_REPO__}/commit/${__APP_COMMIT__}`
+    el.target = '_blank'
+    el.rel = 'noopener'
+  }
+}
+
 // ---------------------------------------------------------------- command palette (⌘K / Ctrl+K)
 
 /** Commands that apply right now, with titles that say what they'll do. */

@@ -1148,6 +1148,18 @@ input:focus-visible,
 .mobile-copy {
   display: none;
 }
+.status-hint {
+  margin-left: auto;
+}
+.app-version {
+  color: var(--muted);
+  text-decoration: none;
+  white-space: nowrap;
+}
+a.app-version[href]:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
 .toast {
   position: fixed;
   left: 50%;
@@ -1390,9 +1402,13 @@ input:focus-visible,
     line-height: 30px;
   }
   .statusbar {
-    flex-direction: column;
-    align-items: stretch;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
     padding: 12px 16px 16px;
+  }
+  .mobile-copy {
+    grid-column: 1 / -1;
   }
   .status-hint {
     display: none;
