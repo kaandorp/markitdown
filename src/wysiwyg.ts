@@ -2,7 +2,7 @@ import { Editor } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
 import { Markdown } from '@tiptap/markdown'
 import { TableKit } from '@tiptap/extension-table'
-import { TaskList, TaskItem } from '@tiptap/extension-list'
+import { TaskList, TaskItem, OrderedList } from '@tiptap/extension-list'
 import { Placeholder } from '@tiptap/extensions'
 import Image from '@tiptap/extension-image'
 import Link from '@tiptap/extension-link'
@@ -50,6 +50,31 @@ function escapeLineStarts(md: string): string {
     )
     .join('\n')
 }
+
+/**
+ * Numbered lists only, as in CommonMark and GitHub. Tiptap also reads lettered
+ * and Roman markers ("A.", "f.", "IV.") as lists, so ordinary text such as
+ * "F. Hoffmann-La Roche Ltd …" or "I. Introduction" became a list. Lists pasted
+ * as HTML with letters or Roman numerals become plain numbered lists, so they
+ * never produce Markdown that other tools would read as a paragraph.
+ */
+const NumberedList = OrderedList.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      type: { default: null, parseHTML: () => null, renderHTML: () => ({}) },
+    }
+  },
+  markdownTokenizer: {
+    ...OrderedList.config.markdownTokenizer!,
+    tokenize: (src, tokens, lexer) => {
+      const token = OrderedList.config.markdownTokenizer!.tokenize(src, tokens, lexer)
+      // Standard Markdown lists start with 1–9 digits and "." or ")"; anything
+      // else ("F.", "IV.", "Dr.") is ordinary text.
+      return token && /^ {0,3}\d{1,9}[.)](?:[ \t]|$)/.test(token.raw ?? '') ? token : undefined
+    },
+  },
+})
 
 const SafeParagraph = Paragraph.extend({
   renderMarkdown(node, h, ctx) {
@@ -138,7 +163,9 @@ export function createWysiwyg(el: HTMLElement, initialMarkdown: string, onChange
         underline: false, // not representable in Markdown
         link: false,
         paragraph: false,
+        orderedList: false,
       }),
+      NumberedList,
       SafeParagraph,
       CleanLink,
       CodeBlock,
