@@ -31,7 +31,8 @@ function promptLink(e: Editor) {
   }
 }
 
-const GROUPS: Btn[][] = [
+/** The formatting buttons, in toolbar order (also listed in the command palette). */
+export const GROUPS: Btn[][] = [
   [
     { label: 'P', title: 'Paragraph', run: (e) => e.chain().focus().setParagraph().run(), active: (e) => e.isActive('paragraph') },
     { label: 'H1', title: `Heading 1 (${mod}Alt+1)`, run: (e) => e.chain().focus().toggleHeading({ level: 1 }).run(), active: (e) => e.isActive('heading', { level: 1 }) },

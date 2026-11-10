@@ -41,6 +41,8 @@ Rich-text (WYSIWYG) editing on the left, Markdown source on the right, and the t
   pane's header.
 - **Show or hide the Markdown source** with the pane button at the right end of the formatting toolbar, next to
   **Full width**; hidden, the rich-text pane takes the whole width.
+- **Command palette**: press **⌘K** (Mac) or **Ctrl+K** (Windows, Linux), or use the ⌘ button in the app bar, to search
+  and run any command: file, copy, documents, formatting, clean-up and view. Recently used commands come first.
 - Resizable split view, light/dark theme (follows the OS, with a toggle), stacked layout on small screens.
 
 Everything runs in the browser; no text leaves your machine.

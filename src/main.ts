@@ -7,7 +7,8 @@ import type { Node as PMNode } from '@tiptap/pm/model'
 import { EditorState } from '@tiptap/pm/state'
 import { createWysiwyg } from './wysiwyg'
 import { createSource } from './source'
-import { mountToolbar } from './toolbar'
+import { mountToolbar, GROUPS as FORMAT_GROUPS, type Btn } from './toolbar'
+import { createPalette, paletteShortcut, type Command } from './palette'
 import { createScrollSync } from './scrollsync'
 import { collapseBlankLines, markdownToPlainText, tidyMarkdown, trimTrailingWhitespace } from './markdown'
 import { WELCOME } from './welcome'
@@ -247,39 +248,38 @@ const splitEl = $('split')
 let sourceVisible = store.get(KEY_SOURCE) !== '0'
 splitEl.classList.toggle('source-hidden', !sourceVisible)
 
-const refreshToolbar = mountToolbar($('toolbar'), editor, [
-  {
-    label: 'Full width',
-    icon: 'i-width',
-    title: 'Full width',
-    active: () => fullWidth,
-    run: () => {
-      fullWidth = !fullWidth
-      paneLeft.classList.toggle('is-full-width', fullWidth)
-      store.set(KEY_FULL_WIDTH, fullWidth ? '1' : '0')
-      refreshToolbar()
+const toggleFullWidth: Btn = {
+  label: 'Full width',
+  icon: 'i-width',
+  title: 'Full width',
+  active: () => fullWidth,
+  run: () => {
+    fullWidth = !fullWidth
+    paneLeft.classList.toggle('is-full-width', fullWidth)
+    store.set(KEY_FULL_WIDTH, fullWidth ? '1' : '0')
+    refreshToolbar()
+    scrollSync.resync()
+  },
+}
+const toggleSource: Btn = {
+  label: 'Markdown source',
+  icon: 'i-source-pane',
+  title: 'Show Markdown source',
+  active: () => sourceVisible,
+  run: () => {
+    sourceVisible = !sourceVisible
+    flushSource()
+    splitEl.classList.toggle('source-hidden', !sourceVisible)
+    store.set(KEY_SOURCE, sourceVisible ? '1' : '0')
+    refreshToolbar()
+    if (sourceVisible) {
+      // CodeMirror measured nothing while hidden.
+      source.view.requestMeasure()
       scrollSync.resync()
-    },
+    }
   },
-  {
-    label: 'Markdown source',
-    icon: 'i-source-pane',
-    title: 'Show Markdown source',
-    active: () => sourceVisible,
-    run: () => {
-      sourceVisible = !sourceVisible
-      flushSource()
-      splitEl.classList.toggle('source-hidden', !sourceVisible)
-      store.set(KEY_SOURCE, sourceVisible ? '1' : '0')
-      refreshToolbar()
-      if (sourceVisible) {
-        // CodeMirror measured nothing while hidden.
-        source.view.requestMeasure()
-        scrollSync.resync()
-      }
-    },
-  },
-])
+}
+const refreshToolbar = mountToolbar($('toolbar'), editor, [toggleFullWidth, toggleSource])
 
 // ---------------------------------------------------------------- clipboard
 
@@ -1141,6 +1141,93 @@ document.addEventListener('keydown', (e) => {
 $('btn-copy-md-mobile').addEventListener('click', () => $('btn-copy-md').click())
 
 if (import.meta.env.DEV) Object.assign(window, { __lf: { openLocalFiles, saveActive, checkDisk, perms } })
+
+// ---------------------------------------------------------------- command palette (⌘K / Ctrl+K)
+
+/** Commands that apply right now, with titles that say what they'll do. */
+function buildCommands(): Command[] {
+  const cmds: Command[] = []
+  const add = (group: string, id: string, title: string, run: () => void, extra: Partial<Command> = {}) =>
+    cmds.push({ group, id, title, run, ...extra })
+  /** Run a button's own click handler (keeps one code path for button and palette). */
+  const click = (id: string) => () => $(id).click()
+  const shown = (el: HTMLElement) => !el.closest('[hidden]')
+  const saveKey = paletteShortcut.replace('K', 'S')
+  const meta = docs.getDoc(activeId)
+  const linked = !!meta?.file
+  const desktop = window.matchMedia('(min-width: 801px)').matches
+
+  // File
+  add('File', 'open', lf.supported ? 'Open file…' : 'Open file as a new document…', click('btn-open'), { keywords: 'import load md' })
+  if (lf.supported) {
+    add('File', 'save', linked ? `Save to ${meta!.file!.name}` : 'Save as a file…', click('btn-save-file'), { shortcut: saveKey, keywords: 'write disk' })
+    add('File', 'new-file', 'New file on this device…', click('btn-new-file'), { keywords: 'create local' })
+  }
+  add('File', 'download', 'Download as .md', click('btn-save'), { keywords: 'export save' })
+  if (linked) {
+    add('File', 'autosave', meta!.file!.autosave ? 'Turn autosave off' : 'Turn autosave on', click('chk-autosave'), { keywords: 'automatic save' })
+    if (shown($('btn-reconnect'))) add('File', 'reconnect', 'Reconnect to file', click('btn-reconnect'), { keywords: 'permission access allow' })
+  }
+
+  // Copy
+  add('Copy', 'copy-md', 'Copy Markdown', click('btn-copy-md'), { keywords: 'clipboard llm prompt' })
+  add('Copy', 'copy-text', 'Copy plain text', click('btn-copy-text'), { keywords: 'clipboard' })
+
+  // Documents
+  add('Documents', 'new-doc', 'New document', newDocument, { keywords: 'create tab blank' })
+  add('Documents', 'rename', 'Rename document', () => {
+    if (nameInput.offsetParent) {
+      nameInput.focus()
+      nameInput.select()
+    } else {
+      setSidebar(true)
+      const li = tabsEl.querySelector<HTMLLIElement>('.doc-tab.is-active')
+      if (li) startRename(li)
+    }
+  }, { keywords: 'name title' })
+  add('Documents', 'delete-doc', linked ? 'Close file' : 'Delete document', () => deleteDocument(activeId), { keywords: 'remove close' })
+  for (const d of docs.listDocs()) {
+    if (d.id === activeId) continue
+    add('Documents', `go-${d.id}`, `Go to “${titleOf(d)}”`, () => switchTo(d.id), { keywords: 'switch open tab document' })
+  }
+
+  // Formatting (the toolbar's own buttons)
+  for (const group of FORMAT_GROUPS) {
+    for (const def of group) {
+      if (def.visible && !def.visible(editor)) continue
+      const m = def.title.match(/^(.*?)\s*\((.+)\)$/)
+      const isEdit = def.label === 'Undo' || def.label === 'Redo'
+      add(isEdit ? 'Edit' : 'Formatting', `fmt-${def.label}`, m ? m[1] : def.title, () => def.run(editor), {
+        shortcut: m?.[2],
+        keywords: def.label,
+      })
+    }
+  }
+
+  // Clean up (the menu's own items)
+  for (const btn of document.querySelectorAll<HTMLButtonElement>('#cleanup-menu [data-cleanup]')) {
+    add('Clean up', `clean-${btn.dataset.cleanup}`, btn.textContent!.trim(), () => btn.click(), { keywords: 'cleanup tidy' })
+  }
+  add('Clean up', 'clear', 'Clear document', click('btn-clear'), { keywords: 'empty erase' })
+
+  // View
+  add('View', 'full-width', fullWidth ? 'Use reading width' : 'Use full width', () => toggleFullWidth.run(editor), { keywords: 'wide narrow' })
+  if (desktop) add('View', 'source', sourceVisible ? 'Hide Markdown source' : 'Show Markdown source', () => toggleSource.run(editor), { keywords: 'pane split' })
+  add('View', 'sync', syncScroll ? 'Turn sync scroll off' : 'Turn sync scroll on', click('btn-sync'), { keywords: 'scrolling align' })
+  add('View', 'sidebar', workspace.classList.contains('sidebar-hidden') ? 'Show documents' : 'Hide documents', click('btn-sidebar'), { keywords: 'sidebar tabs' })
+  add('View', 'theme', effectiveTheme() === 'dark' ? 'Switch to light theme' : 'Switch to dark theme', click('btn-theme'), { keywords: 'dark light mode colour' })
+
+  return cmds
+}
+
+const palette = createPalette(buildCommands)
+const paletteBtn = $<HTMLButtonElement>('btn-palette')
+paletteBtn.title = `Commands (${paletteShortcut})`
+paletteBtn.addEventListener('click', (e) => {
+  e.stopPropagation()
+  setMore(false)
+  palette.open()
+})
 
 renderTabs()
 void checkDisk(activeId)

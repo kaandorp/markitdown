@@ -1030,6 +1030,106 @@ input:focus-visible,
   color: var(--muted);
 }
 
+/* ------------------------------------------------------------ command palette (⌘K / Ctrl+K) */
+
+.palette-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 12vh 16px 16px;
+  background: color-mix(in srgb, #000000 28%, transparent);
+}
+.palette-backdrop[hidden] {
+  display: none;
+}
+.palette {
+  display: flex;
+  flex-direction: column;
+  width: min(580px, 100%);
+  max-height: min(560px, 76vh);
+  background: var(--bg-raised);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.palette-field {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+}
+.palette-field .i {
+  width: 18px;
+  height: 18px;
+}
+.palette-input {
+  flex: 1;
+  min-width: 0;
+  height: 52px;
+  border: none;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  font-size: 16px;
+  color: var(--fg);
+}
+.palette-input:focus-visible {
+  outline: none; /* the open dialog shows where focus is */
+}
+.palette-field:focus-within {
+  border-bottom-color: var(--accent);
+}
+.palette-input::placeholder {
+  color: var(--muted);
+}
+.palette kbd {
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.palette-esc {
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.palette-list {
+  overflow-y: auto;
+  padding: 6px;
+}
+.palette-group {
+  padding: 10px 12px 4px;
+  color: var(--muted);
+}
+.palette-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.palette-item.is-active {
+  background: var(--selection);
+  color: var(--on-selection);
+}
+.palette-item.is-active kbd {
+  color: inherit;
+}
+.palette-empty {
+  padding: 16px 12px;
+  color: var(--muted);
+}
+
 /* ------------------------------------------------------------ status bar, toast, drop */
 
 .statusbar {
